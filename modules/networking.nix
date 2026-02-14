@@ -1,6 +1,4 @@
-{
-  ...
-}:
+_:
 {
   networking = {
     hostName = "Think14GRyzen";
