@@ -1,5 +1,4 @@
-_:
-{
+_: {
   networking = {
     hostName = "Think14GRyzen";
     networkmanager = {
