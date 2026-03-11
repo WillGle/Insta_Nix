@@ -1,15 +1,15 @@
-# NixOS Flake Configuration (Multi-host)
+# NixOS Flake Configuration (Hard-Migrated IA)
 
 This repository is organized for:
 
-- Multi-host management
-- Safe remote migration
-- Minimal complexity (shared base + host overlays)
+- Clear ownership boundaries (`personal` vs `generic` vs `shared`)
+- Low-friction day-to-day maintenance
+- Stable personal daily machine + generic remote install profile
 
-It keeps backward-compatible flake output naming for the current laptop:
+Primary outputs:
 
 - `Think14GRyzen`
-- `Think14GRyzen-bootstrap`
+- `PlankGeneric`
 
 ## Current Architecture
 
@@ -18,46 +18,49 @@ It keeps backward-compatible flake output naming for the current laptop:
 ├── flake.nix
 ├── flake.lock
 ├── README.md
-├── ATOMIC_NOTE_USAGE.md
-├── YAZI_USAGE.md
-├── profiles
-│   ├── common/
-│   ├── roles/
-│   └── hardware/
+├── docs
+│   ├── HOST_ONBOARDING.md
+│   ├── PLANK_REMOTE_INSTALL.md
+│   └── REMOTE_MIGRATION.md
 ├── hosts
-│   ├── ryzen14
-│   │   ├── default.nix
-│   │   ├── hardware-configuration.nix
-│   │   ├── storage.nix
-│   │   ├── networking.nix
-│   │   └── home-overlay.nix
+│   ├── personal
+│   │   ├── think14gryzen.nix
+│   │   ├── think14gryzen-hardware.nix
+│   │   ├── think14gryzen-network.nix
+│   │   ├── think14gryzen-storage.nix
+│   │   └── think14gryzen-home.nix
+│   ├── generic
+│   │   └── plank.nix
 │   └── _template
+├── profiles
+│   ├── shared
+│   │   ├── base.nix
+│   │   ├── users-will.nix
+│   │   ├── users-plank.nix
+│   │   ├── ssh-strict.nix
+│   │   └── ssh-plank.nix
+│   └── personal
+│       └── think14gryzen-system.nix
 ├── home
 │   ├── base.nix
 │   └── desktop-common.nix
-├── dotfiles
-│   ├── common
-│   │   ├── fastfetch
-│   │   ├── waybar
-│   │   └── wofi
-│   └── hosts/ryzen14
-│       ├── hypr
-│       ├── kanshi
-│       └── local-bin
-└── docs
-    ├── HOST_ONBOARDING.md
-    └── REMOTE_MIGRATION.md
+└── dotfiles
+    ├── common
+    └── hosts/ryzen14
 ```
 
-## Composition Model
+## Ownership Map
 
-- `profiles/common/*`: shared baseline, no host identity
-- `profiles/hardware/*`: hardware-class tuning, reusable by similar machines
-- `profiles/roles/*`: functional stacks (desktop, apps, gaming)
-- `hosts/<host>/*`: host identity (hostname, disk UUIDs, host networking, host HM overlay)
-- `home/base.nix`: shared Home Manager baseline
-- `home/desktop-common.nix`: shared desktop HM layer
-- `hosts/<host>/home-overlay.nix`: host-specific HM additions
+- Personal (Ryzen):
+  - `hosts/personal/think14gryzen*.nix`
+  - `profiles/personal/think14gryzen-system.nix`
+  - `dotfiles/hosts/ryzen14/*`
+- Generic (Plank):
+  - `hosts/generic/plank.nix`
+- Shared:
+  - `profiles/shared/*`
+  - `home/base.nix`
+  - `home/desktop-common.nix`
 
 ## Flake Outputs
 
@@ -67,16 +70,14 @@ It keeps backward-compatible flake output naming for the current laptop:
 - `PermitRootLogin = "no"`
 - `PasswordAuthentication = false`
 - Resolver: `services.resolved.dnsovertls = "opportunistic"`
-- Effective firewall TCP ports (from this repo): `2222`
-- Effective firewall UDP ports (from this repo): none by default
 
-### `Think14GRyzen-bootstrap` (temporary remote install profile)
+### `PlankGeneric` (generic installer profile)
 
-- SSH ports: `22`, `2222`
-- `PermitRootLogin = "prohibit-password"` (key-based rescue)
+- SSH port: `2222`
+- `PermitRootLogin = "no"`
 - `PasswordAuthentication = false`
-- Effective firewall TCP ports (from this repo): `22`, `2222`
-- Effective firewall UDP ports (from this repo): none by default
+- Label-based storage contract: `NIXOS_BOOT`, `NIXOS_ROOT`, `NIXOS_SWAP`
+- Home Manager disabled for lean installer profile
 
 ## Command Matrix
 
@@ -86,68 +87,43 @@ It keeps backward-compatible flake output naming for the current laptop:
 nix flake check --no-build --no-write-lock-file path:/etc/nixos
 ```
 
-### Build strict profile
+### Build outputs
 
 ```bash
 nixos-rebuild build --flake path:/etc/nixos#Think14GRyzen
+nixos-rebuild build --flake path:/etc/nixos#PlankGeneric
 ```
 
-### Build bootstrap profile
-
-```bash
-nixos-rebuild build --flake path:/etc/nixos#Think14GRyzen-bootstrap
-```
-
-### Apply strict profile
+### Apply daily profile on Ryzen
 
 ```bash
 sudo nixos-rebuild switch --flake /etc/nixos#Think14GRyzen
 ```
 
-### Verify key runtime values
+### Verify output surface
 
 ```bash
-nix eval --raw path:/etc/nixos#nixosConfigurations.Think14GRyzen.config.networking.hostName
+nix flake show --no-write-lock-file path:/etc/nixos
 nix eval --json path:/etc/nixos#nixosConfigurations.Think14GRyzen.config.services.openssh.ports
-nix eval --json path:/etc/nixos#nixosConfigurations.\"Think14GRyzen-bootstrap\".config.services.openssh.ports
-nix eval --json path:/etc/nixos#nixosConfigurations.Think14GRyzen.config.networking.firewall.allowedTCPPorts
-nix eval --json path:/etc/nixos#nixosConfigurations.\"Think14GRyzen-bootstrap\".config.networking.firewall.allowedTCPPorts
-nix eval --json path:/etc/nixos#nixosConfigurations.Think14GRyzen.config.networking.firewall.allowedUDPPorts
-nix eval --json path:/etc/nixos#nixosConfigurations.\"Think14GRyzen-bootstrap\".config.networking.firewall.allowedUDPPorts
-nix eval --raw path:/etc/nixos#nixosConfigurations.Think14GRyzen.config.services.resolved.dnsovertls
+nix eval --json path:/etc/nixos#nixosConfigurations.PlankGeneric.config.services.openssh.ports
 ```
 
-### Local lint/format hygiene
+## Remote Install / Migration
 
-```bash
-nix shell nixpkgs#statix nixpkgs#deadnix nixpkgs#nixfmt-rfc-style --command bash -lc \
-  'statix check . && deadnix . && nixfmt --check flake.nix $(find profiles hosts home -name "*.nix" | sort)'
-```
+- New installs should use `PlankGeneric`.
+- Public guide: `docs/PLANK_REMOTE_INSTALL.md`
+- Legacy notes: `docs/REMOTE_MIGRATION.md`
 
-## Remote Migration Flow
+## Local-Private Remote Install Assets
 
-1. Boot target machine into NixOS installer with SSH enabled.
-2. Install bootstrap output:
+Store keys/runbooks locally (ignored from public repo) under:
 
-```bash
-npx nixos-anywhere --flake .#Think14GRyzen-bootstrap root@<ip>
-```
-
-3. Verify normal user access:
-
-```bash
-ssh -p 2222 will@<ip>
-```
-
-4. Harden to strict profile:
-
-```bash
-sudo nixos-rebuild switch --flake /etc/nixos#Think14GRyzen
-```
-
-5. Re-verify SSH on `2222`.
-
-See full runbook: `docs/REMOTE_MIGRATION.md`
+- `/etc/nixos/.local/remote-install/keys/`
+- `/etc/nixos/.local/remote-install/seed/etc/plank/authorized_keys`
+- `/etc/nixos/.local/remote-install/seed/home/will/.ssh/authorized_keys`
+- `/etc/nixos/.local/remote-install/runbooks/plank-install.md`
+- `/etc/nixos/.local/remote-install/hardware/`
+- `/etc/nixos/.local/remote-install/modules/plank-host-local.nix`
 
 ## Adding a New Host
 
@@ -157,45 +133,20 @@ See full runbook: `docs/REMOTE_MIGRATION.md`
 cp -r hosts/_template hosts/<host-id>
 ```
 
-2. Fill:
+2. Fill host files:
+
 - `hosts/<host-id>/hardware-configuration.nix`
 - `hosts/<host-id>/networking.nix`
 - `hosts/<host-id>/home-overlay.nix`
 
-3. Register new output(s) in `flake.nix`.
+3. Add output in `flake.nix`.
 4. Build and validate.
 
 Detailed guide: `docs/HOST_ONBOARDING.md`
-
-## Maintenance
-
-### Update flake inputs
-
-```bash
-nix flake update
-```
-
-### Garbage collection & Store optimization
-
-```bash
-# Delete older generations and optimize the store
-sudo nix-collect-garbage -d
-nix-store --optimize
-```
-
-### Check store for corruption
-
-```bash
-nix-store --verify --check-contents
-```
 
 ## Operational Notes
 
 - If your Git tree has untracked new files, `--flake .#...` may fail because `git+file` flakes only include tracked files.
 - Use `path:/etc/nixos#...` during local refactors, or stage files with `git add -A`.
-- Host-specific storage for Ryzen14 is defined in `hosts/ryzen14/storage.nix`.
-- Wallpaper is now local (`~/.config/hypr/wallpaper.png`) to avoid hard dependency on `/mnt/vault` at session startup.
-- Battery reserve mode defaults to `ON` at boot via `battery-reserve-default.service`, using dynamic node discovery under `/sys/bus/platform/drivers/ideapad_acpi/*/conservation_mode`.
-- Steam does not auto-open firewall ports; open game ports explicitly in host modules when needed.
-- Waybar has a dedicated `battery mode` button between power profile and refresh-rate modules.
-- Right-click the `battery mode` button to toggle reserve mode at runtime; `system energy flow` remains read-only monitoring.
+- `.local/`, `local-private/`, and `secrets-local/` are intentionally ignored to keep keys/runbooks out of the public repo.
+- Keep `hosts/personal/think14gryzen-hardware.nix` and `hosts/personal/think14gryzen-storage.nix` as source of truth for Ryzen boot/storage.
