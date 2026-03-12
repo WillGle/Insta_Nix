@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# AMD/Ryzen/ROCm quantitative benchmark suite (performance-first, no-crash)
+# AMD/Ryzen quantitative benchmark suite (performance-first, no-crash)
 # Baseline policy:
 # - Use --compare <baseline_root> as canonical baseline source.
 # - No hardcoded historical baseline.
@@ -631,15 +631,24 @@ param_row "cpu" "scaling_driver" "${CPU_DRIVER}" "$( [[ "${CPU_DRIVER}" != "amd-
 param_row "cpu" "governor" "${CPU_GOV}" "$( [[ "${CPU_GOV}" != "performance" ]] && echo true || echo false )" "sysfs" "CPU scaling governor"
 param_row "cpu" "epp" "${CPU_EPP}" "$( [[ "${CPU_EPP}" != "performance" ]] && echo true || echo false )" "sysfs" "Energy-performance preference"
 
-param_row "gpu" "HSA_OVERRIDE_GFX_VERSION" "11.0.0" "true" "/home/will/dev/CPDA/scripts/rocm_phase6_canary.sh" "Force gfx110x compatibility path"
-param_row "gpu" "AMD_SERIALIZE_KERNEL" "1" "true" "/home/will/dev/CPDA/scripts/rocm_phase6_canary.sh" "Serialize kernels to reduce async instability"
-param_row "gpu" "HIP_LAUNCH_BLOCKING" "1" "true" "/home/will/dev/CPDA/scripts/rocm_phase6_canary.sh" "Synchronous HIP launch for deterministic error surfacing"
-param_row "gpu" "HSA_ENABLE_SDMA" "0" "true" "/home/will/dev/CPDA/scripts/rocm_phase6_canary.sh" "Disable SDMA for stability-first canary"
-
-param_row "cpda" "torch" "2.9.1+rocm6.4" "true" "/home/will/dev/CPDA/pyproject.toml" "Pinned ROCm torch wheel"
-param_row "cpda" "torchvision" "0.24.1+rocm6.4" "true" "/home/will/dev/CPDA/pyproject.toml" "Pinned ROCm torchvision wheel"
-param_row "cpda" "torchaudio" "2.9.1+rocm6.4" "true" "/home/will/dev/CPDA/pyproject.toml" "Pinned ROCm torchaudio wheel"
-param_row "cpda" "poetry_source" "https://download.pytorch.org/whl/rocm6.4" "true" "/home/will/dev/CPDA/pyproject.toml" "Supplemental index for ROCm wheels"
+TORCH_META="$(direnv exec "${CPDA_DIR}" python - <<'PY' 2>/dev/null || true
+import torch
+backend = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"{torch.__version__}|{backend}|{getattr(torch.version, 'cuda', None)}|{getattr(torch.version, 'hip', None)}")
+PY
+)"
+if [[ -n "${TORCH_META}" ]]; then
+  TORCH_VER="${TORCH_META%%|*}"
+  _rest="${TORCH_META#*|}"
+  TORCH_BACKEND="${_rest%%|*}"
+  _rest="${_rest#*|}"
+  TORCH_CUDA_VER="${_rest%%|*}"
+  TORCH_HIP_VER="${_rest#*|}"
+  param_row "cpda" "torch_version" "${TORCH_VER}" "false" "${CPDA_DIR}/pyproject.toml" "PyTorch runtime version in CPDA env"
+  param_row "cpda" "torch_backend_active" "${TORCH_BACKEND}" "false" "runtime-detect" "Detected active torch backend"
+  param_row "cpda" "torch_cuda_version" "${TORCH_CUDA_VER}" "false" "runtime-detect" "Torch CUDA runtime tag"
+  param_row "cpda" "torch_hip_version" "${TORCH_HIP_VER}" "false" "runtime-detect" "Torch HIP runtime tag"
+fi
 
 # ---------------------------
 # Phase 1: environment normalization
@@ -686,10 +695,6 @@ if [[ "${RUN_CPU}" -eq 1 ]]; then
 fi
 if [[ "${RUN_GPU}" -eq 1 ]]; then
   direnv exec "${CPDA_DIR}" env \
-    HSA_OVERRIDE_GFX_VERSION=11.0.0 \
-    AMD_SERIALIZE_KERNEL=1 \
-    HIP_LAUNCH_BLOCKING=1 \
-    HSA_ENABLE_SDMA=0 \
     python - <<'PY' > "${LOG_DIR}/warmup-gpu.log" 2>&1 || true
 import torch
 if torch.cuda.is_available():
@@ -756,7 +761,7 @@ fi
 # Phase 3: GPU lane
 # ---------------------------
 if [[ "${RUN_GPU}" -eq 1 ]]; then
-  log "Phase 3: GPU ROCm microbench lane"
+  log "Phase 3: GPU microbench lane"
   req_profile="${PROFILE}"
   eff_profile="${PROFILE}"
   size=128
@@ -770,10 +775,6 @@ if [[ "${RUN_GPU}" -eq 1 ]]; then
   for round in $(seq 1 "${ROUNDS}"); do
     gpu_log="${LOG_DIR}/gpu-${eff_profile}-round${round}.log"
     gpu_res="$(run_timed "${gpu_log}" direnv exec "${CPDA_DIR}" env \
-      HSA_OVERRIDE_GFX_VERSION=11.0.0 \
-      AMD_SERIALIZE_KERNEL=1 \
-      HIP_LAUNCH_BLOCKING=1 \
-      HSA_ENABLE_SDMA=0 \
       GPU_SIZE="${size}" GPU_ITERS="${iters}" \
       python - <<'PY'
 import json, os, time, torch
@@ -813,7 +814,7 @@ PY
     fi
 
     if [[ "${gpu_rc}" -eq 0 ]]; then
-      printf 'gpu,rocm_matmul,%s,%s,%s,%s,%s,%s,%s,PASS,%s\n' \
+      printf 'gpu,gpu_matmul,%s,%s,%s,%s,%s,%s,%s,PASS,%s\n' \
         "${req_profile}" "${eff_profile}" "${size}" "${iters}" "${round}" "${gpu_sec}" "${avg_iter_ms}" "stable" >> "${GPU_CSV}"
       continue
     fi
@@ -825,10 +826,6 @@ PY
 
       gpu_fb_log="${LOG_DIR}/gpu-${eff_profile}-fallback-round${round}.log"
       gpu_fb_res="$(run_timed "${gpu_fb_log}" direnv exec "${CPDA_DIR}" env \
-        HSA_OVERRIDE_GFX_VERSION=11.0.0 \
-        AMD_SERIALIZE_KERNEL=1 \
-        HIP_LAUNCH_BLOCKING=1 \
-        HSA_ENABLE_SDMA=0 \
         GPU_SIZE="${size}" GPU_ITERS="${iters}" \
         python - <<'PY'
 import json, os, time, torch
@@ -851,15 +848,15 @@ PY
       gpu_fb_sec="${gpu_fb_res#*|}"
       gpu_fb_avg="$(parse_json_field avg_iter_ms "${gpu_fb_log}")"
       if [[ "${gpu_fb_rc}" -eq 0 ]]; then
-        printf 'gpu,rocm_matmul,%s,%s,%s,%s,%s,%s,%s,PASS,%s\n' \
+        printf 'gpu,gpu_matmul,%s,%s,%s,%s,%s,%s,%s,PASS,%s\n' \
           "${req_profile}" "${eff_profile}" "${size}" "${iters}" "${round}" "${gpu_fb_sec}" "${gpu_fb_avg}" "fallback_from_aggressive" >> "${GPU_CSV}"
       else
-        printf 'gpu,rocm_matmul,%s,%s,%s,%s,%s,%s,%s,FAIL,%s\n' \
+        printf 'gpu,gpu_matmul,%s,%s,%s,%s,%s,%s,%s,FAIL,%s\n' \
           "${req_profile}" "${eff_profile}" "${size}" "${iters}" "${round}" "${gpu_fb_sec}" "" "fallback_failed rc=${gpu_fb_rc}" >> "${GPU_CSV}"
         add_hard_fail "GPU failed after aggressive->balanced fallback at round ${round}"
       fi
     else
-      printf 'gpu,rocm_matmul,%s,%s,%s,%s,%s,%s,%s,FAIL,%s\n' \
+      printf 'gpu,gpu_matmul,%s,%s,%s,%s,%s,%s,%s,FAIL,%s\n' \
         "${req_profile}" "${eff_profile}" "${size}" "${iters}" "${round}" "${gpu_sec}" "${avg_iter_ms}" "gpu_rc=${gpu_rc}" >> "${GPU_CSV}"
       add_hard_fail "GPU lane failed at round ${round} (profile=${eff_profile})"
     fi
@@ -1027,12 +1024,12 @@ scan_kernel_log
 log "Phase 6: Summarize and score"
 compute_summary_csv
 
-CUR_GPU_MS="$(get_summary_stat gpu rocm_matmul avg_iter_ms median)"
+CUR_GPU_MS="$(get_summary_stat gpu gpu_matmul avg_iter_ms median)"
 CUR_CPDA_INTERNAL="$(get_summary_stat cpda cpda_pytest_sparse_smoke seconds_internal median)"
 CUR_CPDA_CLI_REPEAT_MEDIAN="$(get_summary_stat cpda cpda_cli_short_benchmark seconds_internal_repeat median)"
 CUR_CPDA_CLI_REPEAT_P95="$(get_summary_stat cpda cpda_cli_short_benchmark seconds_internal_repeat p95)"
 
-BASE_GPU_MS="$(baseline_lookup_stat gpu rocm_matmul avg_iter_ms median)"
+BASE_GPU_MS="$(baseline_lookup_stat gpu gpu_matmul avg_iter_ms median)"
 BASE_CPDA_INTERNAL="$(baseline_lookup_stat cpda cpda_pytest_sparse_smoke seconds_internal median)"
 BASE_CPDA_CLI_REPEAT_MEDIAN="$(baseline_lookup_stat cpda cpda_cli_short_benchmark seconds_internal_repeat median)"
 BASE_CPDA_CLI_REPEAT_P95="$(baseline_lookup_stat cpda cpda_cli_short_benchmark seconds_internal_repeat p95)"
@@ -1177,8 +1174,8 @@ secondary_eval_stat "secondary_regress_cpda_pytest_sparse_smoke_internal" "cpda"
 secondary_eval_stat "secondary_regress_cpda_pytest_sparse_smoke_internal_p95" "cpda" "cpda_pytest_sparse_smoke" "seconds_internal" "p95" "${GATE_P95}"
 secondary_eval_stat "secondary_regress_cpda_cli_internal_median" "cpda" "cpda_cli_short_benchmark" "seconds_internal_repeat" "median" "${GATE_MEDIAN}"
 secondary_eval_stat "secondary_regress_cpda_cli_internal_p95" "cpda" "cpda_cli_short_benchmark" "seconds_internal_repeat" "p95" "${GATE_P95}"
-secondary_eval_stat "secondary_regress_rocm_matmul_avg_iter_ms" "gpu" "rocm_matmul" "avg_iter_ms" "median" "${GATE_MEDIAN}"
-secondary_eval_stat "secondary_regress_rocm_matmul_avg_iter_ms_p95" "gpu" "rocm_matmul" "avg_iter_ms" "p95" "${GATE_P95}"
+secondary_eval_stat "secondary_regress_gpu_matmul_avg_iter_ms" "gpu" "gpu_matmul" "avg_iter_ms" "median" "${GATE_MEDIAN}"
+secondary_eval_stat "secondary_regress_gpu_matmul_avg_iter_ms_p95" "gpu" "gpu_matmul" "avg_iter_ms" "p95" "${GATE_P95}"
 
 PREV_SECONDARY_FAIL=0
 if [[ -n "${COMPARE_SCORECARD_TSV}" && -f "${COMPARE_SCORECARD_TSV}" ]]; then
@@ -1239,7 +1236,7 @@ printf 'final_decision\t%s\t%s\tGO|GO-WITH-WARN|NO-GO\tpolicy=performance-first-
 
 # Final markdown report
 {
-  echo "# AMD/Ryzen/ROCm Performance Suite Report"
+  echo "# AMD/Ryzen Performance Suite Report"
   echo
   echo "- Started: ${START_ISO}"
   echo "- Finished: $(date -Iseconds)"

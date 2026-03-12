@@ -1,128 +1,144 @@
-# ROCm Retry Checkpoint (2026-03-13)
+# ROCm Retry Checkpoint 2026-03-13
 
-## Intent
+Muc tieu tai lieu nay:
+- Giu lai day du tri thuc tu cac vong thu ROCm tren Think14GRyzen.
+- Ghi ro ly do rollback ve trang thai on dinh hien tai.
+- Cung cap runbook fast-track de cai dat lai ROCm sau nay theo gate an toan.
 
-This checkpoint captures the exact state after safe-lane stabilization work,
-so future retries can be resumed with full context and reproducibility.
+Trang thai hien tai (checkpoint nay):
+- ROCm da duoc go khoi cau hinh NixOS active de uu tien do on dinh desktop/session.
+- He thong dang giu baseline ky thuat de benchmark tai: `/var/tmp/amd-perf-suite/baselines/current-safe`.
+- `power-profiles-daemon` la power manager duy nhat.
+- CPU policy baseline: `amd_pstate=active`, `amd-pstate-epp`, governor `performance`, EPP `performance`.
 
-## Host and active system
+## 1) Tom tat su co quan trong (root-cause evidence)
 
-- Host: Think14GRyzen
-- Active system path:
-  - /nix/store/rg43gz304m5ffsqlnmi3yjpbds6xlpms-nixos-system-Think14GRyzen-25.11.20260306.71caefc
-- Kernel baseline policy kept:
-  - amd_pstate=active
-  - scaling_driver=amd-pstate-epp
-  - governor=performance
-  - energy_performance_preference=performance
+Su co lon nhat trong campaign ROCm xay ra luc 2026-03-12 17:07 +07 (Phase 4 framework canary):
+- GPU hang trong workload Torch ROCm canary.
+- Kernel ghi nhan `MES failed ...`, `GPU reset begin`, `VRAM is lost`.
+- Hyprland/Xwayland abort => user bi logout ve man hinh dang nhap.
 
-## Scope implemented in this checkpoint
+Evidence chinh:
+- `/var/tmp/rocm-incident-20260312-1707.md`
+- `/var/tmp/rocm-full-20260312-164507/summary.tsv`
+- `/var/tmp/rocm-stable-cycle1-20260312-224453/4/torch-rocm-canary.attempt1.log`
 
-1. Keep ROCm enabled (do not remove ROCm runtime path).
-2. Freeze risky framework canary path for now (no --run-framework in safe lane).
-3. Add high-safety observability/perf tools only.
-4. Keep power guardrails:
-   - power-profiles-daemon active
-   - tlp not enabled
-   - lactd not enabled
+Danh gia:
+- Day la **GPU reset + session crash do canary framework ROCm**, khong phai user force reset chu dong.
+- Runtime detect (`rocminfo`, `clinfo`, `vulkaninfo`) co the PASS, nhung van khong dam bao workload framework nong se on dinh tren iGPU nay.
 
-## Nix/flake changes
+## 2) Cac thay doi da tung ap dung trong campaign ROCm
 
-- Added dedicated pinned ROCm input in flake:
-  - nixpkgs-rocm rev: 71caefce12ba78d84fe618cf61644dce01cf3a96
-- Exported pinned package for phase4 canary:
-  - packages.x86_64-linux.rocm-phase4-python
+### 2.1 NixOS side (da thu)
+- Them pin ROCm rieng trong flake (`nixpkgs-rocm`) de canary reproducible.
+- Them package quan sat/an toan cao:
+  - `cpupower-gui`
+  - `ryzen-monitor-ng`
+  - `nvtopPackages.amd`
+  - `btop-rocm`
+  - `vulkan-caps-viewer`
+  - `rocmPackages.rocm-smi`
+- Script rollout/an toan da tung su dung:
+  - `scripts/rocm-rollout-precheck.sh`
+  - `scripts/rocm-stability-supervisor.sh`
+  - `scripts/rocm-night-watchdog.sh`
+  - `scripts/amd-perf-suite.sh`
 
-## System package changes (high-safety set)
+### 2.2 CPDA side (da thu)
+- Da co giai doan pin Torch ROCm (`2.9.1+rocm6.4`) de test framework lane.
+- Da dung `scripts/rocm_phase6_canary.sh` de canary trong CPDA env.
+- Da gap tinh huong model/bench CPDA khong on dinh khi backend tu dong chon GPU (PyOD AutoEncoder).
 
-Added to think14gryzen system packages:
+## 3) Nhung yeu to quan trong can nho
 
-- cpupower-gui
-- ryzen-monitor-ng (binary: ryzen_monitor)
-- nvtopPackages.amd (binary: nvtop)
-- btop-rocm (binary remains btop)
-- vulkan-caps-viewer (binary: vulkanCapsViewer)
-- rocmPackages.rocm-smi (binary: rocm-smi)
+1. Runtime detect PASS != framework stable PASS.
+- `rocminfo/clinfo/vulkaninfo` PASS chi xac nhan duong runtime nhin thay device.
+- Khong dong nghia workload Torch ROCm dai/severe se khong reset GPU.
 
-Also ensured runtime diagnostics are present in config path:
+2. Session logout da tung xay ra do GPU reset, khong chi la warning nhe.
+- Neu thay signature `MES failed`, `ring timeout`, `GPU reset`, phai stop ngay rollout framework.
 
-- rocmPackages.clr.icd
-- linuxPackages.cpupower
-- vulkan-tools
-- clinfo
-- amdgpu_top
-- radeontop
-- rocmPackages.rocminfo
+3. Benchmark KPI phai compare dung baseline va dung metric noi bo.
+- Khong hardcode baseline theo duong dan cu.
+- CPDA KPI uu tien internal timing, wall-time chi fallback co gan nhan WARN.
 
-## Script and tooling introduced
+4. Guardrail power policy la bat buoc.
+- Khong bat song song `tlp`/`lactd` voi `power-profiles-daemon`.
+- Khong doi governor/pstate policy trong luc so sanh A/B, neu doi thi baseline vo hieu.
 
-- scripts/rocm-rollout-precheck.sh
-- scripts/amd-perf-suite.sh
-- scripts/rocm-night-watchdog.sh
-- scripts/rocm-stability-supervisor.sh
-- docs/ROCM_ROLLOUT_CHECKLIST.md
-- README sections for ROCm precheck + amd-perf-suite runbook
+5. ROCm voi CPDA/PyOD co rui ro hanh vi backend tu dong.
+- `torch.cuda.is_available() = True` se khien mot so model auto chon thiet bi GPU.
+- Neu model/framework khong thuong thich backend nay, co the fail correctness hoac fail runtime.
 
-## Critical incidents and findings
+## 4) Canh bao (warning) can ghi ro cho lan sau
 
-1. Framework canary can trigger GPU reset/logout under load.
-   - Example evidence:
-     - /var/tmp/rocm-stable-cycle1-20260312-224453/4/torch-rocm-canary.attempt1.log
-     - /var/tmp/rocm-safe-install-20260312-224203/4/precheck-cycle1.log
+- Co the gap warning `amdgpu.ids missing` trong mot so tool; day thuong la soft warning telemetry, nhung van phai theo doi kernel hard-fail rieng.
+- Co kha nang xuat hien divergence metric (KPI lech) neu compare run khong dong profile/rounds/threads.
+- Canary framework ROCm tung gay crash session tren may nay; tat ca lan retry phai chay theo gate tung phase, co rollback san.
 
-2. Safe lane (no framework) is stable enough to run repeatedly.
-   - Precheck safe runs PASS:
-     - /var/tmp/rocm-safe-no-framework-1-20260312-232948
-     - /var/tmp/rocm-safe-no-framework-2-20260312-235100
+## 5) Vi sao rollback ROCm khoi active config
 
-3. Performance policy still reports NO-GO in benchmark scoring,
-   even with hard_fail_count=0 in safe benchmark runs.
-   - /var/tmp/amd-perf-safe-1-20260313-001254/scorecard.tsv
-   - /var/tmp/amd-perf-safe-2-20260313-001804/scorecard.tsv
+Quyet dinh rollback duoc chon vi uu tien:
+- On dinh desktop khong logout.
+- Bao toan workflow CPDA de nghien cuu chay CPU/Vulkan lane on dinh.
+- Tach bai toan benchmark/perf khoi bai toan framework ROCm de tranh rui ro he thong.
 
-## Latest consolidated report (safe lane)
+Ket qua sau rollback:
+- Safe lane (khong framework canary) chay on dinh hon.
+- Khong ghi nhan hard-fail kernel moi trong lane an toan cua campaign cuoi.
 
-- /var/tmp/amd-rocm-safe-stabilization-report-20260313-002404.md
+## 6) Fast-track runbook de cai lai ROCm lan sau (neu can)
 
-## Replay commands used for this checkpoint
+Chi mo lai khi ban chap nhan rui ro co the logout session.
 
-Build/switch:
+### Phase F0 - Freeze
+1. Chot generation hien tai + backup evidence root.
+2. Xac nhan guardrail power manager/policy.
+3. Chot baseline benchmark o `/var/lib/amd-perf-suite/baselines/current-safe`.
 
-```bash
-sudo nixos-rebuild build --flake /etc/nixos#Think14GRyzen
-sudo nixos-rebuild switch --flake /etc/nixos#Think14GRyzen
-```
+### Phase F1 - Runtime only
+1. Them lai ROCm runtime toi thieu (khong framework all-in ngay).
+2. Kiem tra `rocminfo`, `clinfo`, `vulkaninfo --summary`.
+3. Neu kernel hard-fail signature xuat hien => rollback ngay.
 
-Precheck safe lane (without framework):
+### Phase F2 - Soak + benchmark safe
+1. Chay precheck **khong framework** (`--run-soak` only).
+2. Chay `amd-perf-suite.sh` profile safe (co kernel lane neu co sudo).
+3. Can 2 run lien tiep khong hard-fail.
 
-```bash
-/etc/nixos/scripts/rocm-rollout-precheck.sh --run-soak --root /var/tmp/rocm-safe-no-framework-<n>-<ts>
-```
+### Phase F3 - Framework canary 1-shot
+1. Chay duy nhat 1 lan framework canary co gioi han thoi gian.
+2. Theo doi kernel logs song song.
+3. Neu xuat hien GPU reset/hang 1 lan nua => dong bang framework lane dai han.
 
-Benchmark safe lane:
+### Phase F4 - Promote
+1. Chi promote khi pass toan bo gate va khong logout.
+2. Cap nhat checkpoint tai lieu + evidence index.
 
-```bash
-sudo env "HOME=$HOME" "USER=$USER" "PATH=$PATH" /etc/nixos/scripts/amd-perf-suite.sh \
-  --root /var/tmp/amd-perf-safe-<n>-<ts> \
-  --profile safe \
-  --rounds 5 \
-  --run-cpu --run-gpu --run-cpda \
-  --with-kernel-log \
-  --baseline-root /var/tmp/amd-perf-suite/baselines/current-safe \
-  --cpda-dir /home/will/dev/CPDA
-```
+## 7) Rollback gate chuan
 
-## Retry policy for next serious attempt
+- Runtime rollback ngay:
+  - `sudo nixos-rebuild switch --rollback`
+- Neu boot issue:
+  - chon generation truoc trong boot menu.
+- Rollback logic CPDA:
+  - `git -C /home/will/dev/CPDA switch <stable-branch>`
+- Khong dung `git reset --hard` cho van hanh thuong ngay.
 
-1. Keep safe-lane first: no --run-framework.
-2. Require 2 safe precheck passes + 2 benchmark passes with hard_fail_count=0.
-3. Re-enable Phase 4 with one controlled attempt only.
-4. If GPU reset/logout appears once more in Phase 4, freeze Phase 4 long-term.
+## 8) Evidence index quan trong
 
-## Rollback reminders
+- Su co logout/reset:
+  - `/var/tmp/rocm-incident-20260312-1707.md`
+- Safe stabilization report:
+  - `/var/tmp/amd-rocm-safe-stabilization-report-20260313-002404.md`
+- Tong hop thay doi NixOS + CPDA:
+  - `/var/tmp/nixos-cpda-change-report-20260313-004804.md`
+- Baseline benchmark da promote:
+  - `/var/tmp/amd-perf-suite/baselines/safe-r5-20260312-210826`
+  - symlink ky thuat: `/var/tmp/amd-perf-suite/baselines/current-safe`
 
-```bash
-sudo nixos-rebuild switch --rollback
-```
+## 9) Ket luan checkpoint
 
-If boot issue: select previous generation from boot menu.
+- ROCm framework lane tren may nay da co tien su gay GPU reset/logout.
+- Trang thai hien tai uu tien on dinh la dung huong.
+- Toan bo thong tin de retry da duoc chot trong tai lieu nay de lan sau co the fast-track co kiem soat.
