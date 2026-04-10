@@ -1,6 +1,17 @@
 # ROCm Sub-Agent Prompt
 
-Use the block below as the canonical paste-ready prompt for delegating ROCm retry work on this machine. It is intentionally strict, stateful, and evidence-driven.
+## Status
+
+- Archived
+- ROCm is not part of the active configuration in this repo
+
+## Summary
+
+This file preserves the prompt used for a ROCm retry investigation on this machine.
+
+Keep it as historical reference only. It reflects the assumptions, wording, and process used during that investigation.
+
+## Historical details
 
 Last updated: 2026-03-25
 
@@ -83,7 +94,7 @@ Mandatory local sources and read order before changing anything
 1. `git -C /etc/nixos status --short`
 2. `git -C /etc/nixos show --stat --summary 154d279`
 3. `git -C /etc/nixos show --stat --summary 40f0826`
-4. `/etc/nixos/docs/ROCM_RETRY_CHECKPOINT_20260313.md`
+4. `/etc/nixos/docs/archive/rocm/ROCM_RETRY_CHECKPOINT_20260313.md`
 5. `/etc/nixos/README.md`
 6. `/etc/nixos/hosts/personal/think14gryzen-hardware.nix`
 7. `/etc/nixos/profiles/personal/think14gryzen-system.nix`
@@ -110,10 +121,10 @@ Historical facts you must carry forward
 Execution protocol that applies to every phase
 - Maintain one timestamped working log from start to finish:
   - `TS="$(date +%Y%m%d-%H%M%S)"`
-  - `WORKLOG="/etc/nixos/docs/ROCM_WORKLOG_${TS}.md"`
-  - `HW_DOC="/etc/nixos/docs/ROCM_HARDWARE_INVENTORY_${TS}.md"`
-  - `MATRIX_DOC="/etc/nixos/docs/ROCM_CONFLICT_MATRIX_${TS}.md"`
-  - `REPORT_DOC="/etc/nixos/docs/ROCM_ATTEMPT_REPORT_${TS}.md"`
+  - `WORKLOG="/etc/nixos/docs/archive/rocm/ROCM_WORKLOG_${TS}.md"`
+  - `HW_DOC="/etc/nixos/docs/archive/rocm/ROCM_HARDWARE_INVENTORY_${TS}.md"`
+  - `MATRIX_DOC="/etc/nixos/docs/archive/rocm/ROCM_CONFLICT_MATRIX_${TS}.md"`
+  - `REPORT_DOC="/etc/nixos/docs/archive/rocm/ROCM_ATTEMPT_REPORT_${TS}.md"`
   - `RAW_ROOT="/var/tmp/rocm-retry-${TS}"`
 - Create the docs files immediately and append to them during the run. Do not wait until the end to write evidence.
 - Before each phase, write a section with:
@@ -385,3 +396,8 @@ Non-negotiable behavioral rules
 
 - Re-check the official AMD compatibility matrix before reusing this prompt on a different ROCm release.
 - If the host kernel, NixOS version, available system memory, or CPDA backend pins change, update the locked context section before delegating.
+
+## References
+
+- [`README.md`](./README.md)
+- [`ROCM_RETRY_CHECKPOINT_20260313.md`](./ROCM_RETRY_CHECKPOINT_20260313.md)

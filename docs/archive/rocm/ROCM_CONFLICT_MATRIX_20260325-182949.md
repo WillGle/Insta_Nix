@@ -1,5 +1,18 @@
 # ROCm Conflict Matrix 20260325-182949
 
+## Status
+
+- Archived
+- ROCm is not part of the active configuration in this repo
+
+## Summary
+
+This file is the condensed risk table used during the March 25, 2026 ROCm retry review.
+
+Read it as a historical decision record for that review.
+
+## Historical details
+
 | component | current_state | risk_level | why_it_conflicts_or_not | required_action | phase_where_action_applies |
 | --- | --- | --- | --- | --- | --- |
 | distro support | `NixOS 25.11` | high | Current official Ryzen ROCm Linux matrix lists `Ubuntu 24.04.3` only and does not list NixOS. This is an official support gap, not a packaging issue. | Treat host OS as unsupported for official ROCm retry. Do not interpret runtime detection as supported deployment. | F1 |
@@ -23,3 +36,8 @@ Reason:
 - Official Ryzen prerequisites recommend materially more memory than this machine currently exposes to the OS.
 - Local history already records a GPU reset/logout on this exact machine during ROCm framework canary.
 - This session cannot execute a controlled privileged switch/rollback even if the support gate were acceptable.
+
+## References
+
+- [`README.md`](./README.md)
+- [`ROCM_ATTEMPT_REPORT_20260325-182949.md`](./ROCM_ATTEMPT_REPORT_20260325-182949.md)

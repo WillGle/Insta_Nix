@@ -1,5 +1,18 @@
 # ROCm Retry Checkpoint 2026-03-13
 
+## Status
+
+- Archived
+- ROCm is not part of the active configuration in this repo
+
+## Summary
+
+This file records the March 13, 2026 ROCm rollback state and retry notes for `Think14GRyzen`.
+
+The body stays in Vietnamese because it is the original working note. Read it as historical context, not as the current default workflow.
+
+## Historical details
+
 Muc tieu tai lieu nay:
 - Giu lai day du tri thuc tu cac vong thu ROCm tren Think14GRyzen.
 - Ghi ro ly do rollback ve trang thai on dinh hien tai.
@@ -142,3 +155,8 @@ Chi mo lai khi ban chap nhan rui ro co the logout session.
 - ROCm framework lane tren may nay da co tien su gay GPU reset/logout.
 - Trang thai hien tai uu tien on dinh la dung huong.
 - Toan bo thong tin de retry da duoc chot trong tai lieu nay de lan sau co the fast-track co kiem soat.
+
+## References
+
+- [`README.md`](./README.md)
+- [`../../guides/AMD_PERF_SUITE.md`](../../guides/AMD_PERF_SUITE.md)

@@ -1,5 +1,18 @@
 # ROCm Attempt Report 20260325-182949
 
+## Status
+
+- Archived
+- ROCm is not part of the active configuration in this repo
+
+## Summary
+
+This file summarizes the March 25, 2026 ROCm retry review and its final verdict.
+
+It is kept as a historical report. It does not describe an active support path for the current host configuration.
+
+## Historical details
+
 ## Baseline
 
 - Attempt started: `20260325-182949`
@@ -91,3 +104,9 @@
 
 - Keep ROCm out of the active NixOS host configuration on this machine.
 - If ROCm experimentation is still required, move it to a currently supported Ubuntu ROCm lane and supported Ryzen/Radeon hardware, or treat it as an isolated non-production investigation outside the daily-driver host.
+
+## References
+
+- [`README.md`](./README.md)
+- [`ROCM_CONFLICT_MATRIX_20260325-182949.md`](./ROCM_CONFLICT_MATRIX_20260325-182949.md)
+- [`ROCM_WORKLOG_20260325-182949.md`](./ROCM_WORKLOG_20260325-182949.md)

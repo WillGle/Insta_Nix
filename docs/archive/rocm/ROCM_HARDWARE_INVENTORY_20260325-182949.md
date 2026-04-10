@@ -1,5 +1,18 @@
 # ROCm Hardware Inventory 20260325-182949
 
+## Status
+
+- Archived
+- ROCm is not part of the active configuration in this repo
+
+## Summary
+
+This file records the hardware and baseline software state captured for the March 25, 2026 ROCm retry review.
+
+Use it as historical reference for that investigation.
+
+## Historical details
+
 ## Machine Facts
 
 - Host: `Think14GRyzen`
@@ -58,3 +71,8 @@
 - `/var/tmp/rocm-retry-20260325-182949/tool-presence.txt`
 - `/var/tmp/rocm-retry-20260325-182949/device-nodes.txt`
 - `/var/tmp/rocm-retry-20260325-182949/journal-kernel-amd-scan.txt`
+
+## References
+
+- [`README.md`](./README.md)
+- [`ROCM_WORKLOG_20260325-182949.md`](./ROCM_WORKLOG_20260325-182949.md)
