@@ -135,7 +135,7 @@ Chi mo lai khi ban chap nhan rui ro co the logout session.
 - Neu boot issue:
   - chon generation truoc trong boot menu.
 - Rollback logic CPDA:
-  - `git -C /home/will/dev/CPDA switch <stable-branch>`
+  - `git -C <cpda-repo-root> switch <stable-branch>`
 - Khong dung `git reset --hard` cho van hanh thuong ngay.
 
 ## 8) Evidence index quan trong
