@@ -22,7 +22,7 @@ Your output must be stable, well-documented, thoughtful, and validation-first. B
 
 Locked context: do not ask to reconfirm these facts
 - Primary repo root: `/etc/nixos`
-- Secondary repo in scope only at the final validation phase: `/home/will/dev/CPDA`
+- Secondary repo in scope only at the final validation phase: `<cpda-repo-root>`
 - Authoritative docs/evidence root: `/etc/nixos/docs`
 - Relative path `../docs` from `/etc/nixos` does not exist as of 2026-03-25. Record that fact once and continue. Do not stop to ask where to store docs.
 - Host target: `Think14GRyzen`
@@ -101,11 +101,11 @@ Mandatory local sources and read order before changing anything
 - Do not modify configuration before reading those items in that order and recording what each one implies.
 
 Additional CPDA sources to read only when Phase F5 begins
-1. `/home/will/dev/CPDA/agents/START_HERE.md`
-2. `/home/will/dev/CPDA/README.md`
-3. `/home/will/dev/CPDA/pyproject.toml`
-4. `/home/will/dev/CPDA/OCCPDA/models/pyod_baselines.py`
-5. `/home/will/dev/CPDA/production_run.sh`
+1. `<cpda-repo-root>/agents/START_HERE.md`
+2. `<cpda-repo-root>/README.md`
+3. `<cpda-repo-root>/pyproject.toml`
+4. `<cpda-repo-root>/OCCPDA/models/pyod_baselines.py`
+5. `<cpda-repo-root>/production_run.sh`
 
 Historical facts you must carry forward
 - Commit `154d279` added the retry toolkit and safe-lane support. It also introduced a pinned ROCm flake input and a pinned `rocm-phase4-python` environment for framework canary.
