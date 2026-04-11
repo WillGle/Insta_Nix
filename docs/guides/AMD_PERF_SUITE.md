@@ -15,7 +15,7 @@ Use this guide when you want repeatable CPU, GPU, or CPDA performance checks on 
 - The repo is available at `/etc/nixos`.
 - The script exists at `scripts/amd-perf-suite.sh`.
 - Optional: `sudo` if you want kernel log checks or baseline storage under `/var/lib`.
-- Optional: `/home/will/dev/CPDA` if you want CPDA tests.
+- Optional: `<cpda-repo-root>` if you want CPDA tests.
 
 ## Steps
 
@@ -53,7 +53,7 @@ Use this guide when you want repeatable CPU, GPU, or CPDA performance checks on 
      --cpda-thread-count 16 \
      --secondary-kpi-mode both \
      --with-kernel-log \
-     --cpda-dir /home/will/dev/CPDA
+     --cpda-dir <cpda-repo-root>
    ```
 
 4. Promote the baseline manually if you want a stable comparison target.
@@ -74,7 +74,7 @@ Use this guide when you want repeatable CPU, GPU, or CPDA performance checks on 
      --secondary-kpi-mode both \
      --with-kernel-log \
      --compare /var/lib/amd-perf-suite/baselines/current-safe \
-     --cpda-dir /home/will/dev/CPDA
+     --cpda-dir <cpda-repo-root>
    ```
 
 Plain-English notes:
