@@ -96,4 +96,3 @@ If you used `--compare`, confirm the comparison points to the intended baseline 
 
 - [`LOCAL_LLM.md`](./LOCAL_LLM.md)
 - [`../README.md`](../README.md)
-- [`../STYLE.md`](../STYLE.md)
